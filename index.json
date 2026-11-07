@@ -1,0 +1,47 @@
+{
+  "format": 1,
+  "title": {
+    "en": "Message Pencil index",
+    "zh": "消息编辑插件索引"
+  },
+  "description": {
+    "en": "Public releases of Message Pencil for DeepSeek Harness.",
+    "zh": "DeepSeek Harness 消息编辑插件的公开发行版本。"
+  },
+  "plugins": [
+    {
+      "name": "@local/dsh-message-pencil",
+      "title": {
+        "en": "Message editing",
+        "zh": "消息编辑"
+      },
+      "description": {
+        "en": "Edit a sent user message, discard everything after it and regenerate in the same conversation.",
+        "zh": "编辑已发送的用户消息，截断该位置之后的历史，并在原会话重新生成。"
+      },
+      "icon": "icon.svg",
+      "author": "Stxr",
+      "homepage": "https://github.com/Stxr/dsh-message-pencil#readme",
+      "repository": {
+        "url": "https://github.com/Stxr/dsh-message-pencil"
+      },
+      "metadata": {
+        "keywords": ["dsh-plugin", "message", "editing", "conversation", "Codex", "消息", "编辑"]
+      },
+      "versions": [
+        {
+          "version": "1.1.2",
+          "publishTimestamp": 1794013801,
+          "source": {
+            "type": "git",
+            "url": "https://github.com/Stxr/dsh-message-pencil",
+            "commit": "f43074a196dfcd8f30bc4164f7f44b4d396d750e"
+          },
+          "engines": {
+            "dsh": "0.2.2-rc.1"
+          }
+        }
+      ]
+    }
+  ]
+}

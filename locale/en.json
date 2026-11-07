@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Message editing",
+    "description": "Adds a pencil beside user messages. Retains attachments, discards later history and regenerates in the same conversation."
+  }
+}

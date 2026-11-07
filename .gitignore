@@ -1,0 +1,7 @@
+node_modules/
+tests/.native-tsconfig.json
+# Local desktop diagnostics and private verification fixtures.
+tools/
+dist/
+.DS_Store
+*.log

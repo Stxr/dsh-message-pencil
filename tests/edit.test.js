@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { editAndSend, editTarget, messageText, replaceText } from '../core.js';
-import { apply } from '../index.js';
+import { editAndSend, editTarget, messageText, replaceText } from '../lib/core.js';
+import { apply } from '../lib/index.js';
 
 const image = { type: 'image', attachment: { attachmentId: 'sha256:abc', name: 'sample.webp', bytes: 10, width: 5, height: 2, mediaType: 'image/webp' } };
 const file = { type: 'file', attachment: { attachmentId: 'sha256:def', name: 'notes.txt', bytes: 42 } };

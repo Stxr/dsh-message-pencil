@@ -1,6 +1,6 @@
 # 消息编辑 / Message editing
 
-为 DeepSeek Harness 0.2.2-rc.1 提供 Codex 风格的已发送用户消息编辑。当前版本 1.1.2。
+为 DeepSeek Harness 0.2.2-rc.1 提供 Codex 风格的已发送用户消息编辑。当前版本 1.1.3。
 
 Edit a sent user message and regenerate in the same conversation. Earlier messages stay; the edited message and everything after it are replaced. The pencil appears with Copy on hover, only after generation finishes.
 
@@ -31,7 +31,7 @@ https://raw.githubusercontent.com/Stxr/dsh-message-pencil/main/index.json
 也可以在插件管理器的「添加插件」中输入：
 
 ```text
-git+https://github.com/Stxr/dsh-message-pencil.git#v1.1.2
+git+https://github.com/Stxr/dsh-message-pencil.git#v1.1.3
 ```
 
 或从 [Releases](https://github.com/Stxr/dsh-message-pencil/releases) 下载安装包，解压后通过插件管理器安装**解压目录**。下载的运行包已包含构建好的 Client，无需本地编译。该目录可能作为本地链接使用，安装后请保留。
@@ -54,9 +54,34 @@ UI 使用 `/message-edit` 命令。`edit_sent_message` 工具调用同一操作�
 
 成功返回原 `sessionId`、`editedSeq`、`markerSeq` 和截断范围。如果截断后重新发送失败，返回 `historyChanged: true`、`accepted` 与错误，界面保留错误提示。工具列表中超过 4000 字符的正文标记为 `truncated`，编辑时须从原始会话读取完整文本。
 
+## 源码与构建
+
+维护入口使用 TypeScript，界面使用 TSX；布局参考 [dsh-context](https://github.com/bowenliang123/dsh-context/blob/main/tsdown.config.ts)。DSH 加载编译后的 JavaScript，开发时只修改 `src/` 和 `scripts/`，不直接修改 `lib/`。
+
+| 目录 / 入口 | 职责 |
+| --- | --- |
+| `src/host/index.ts` | Host 入口：组装服务、注册命令和工具 |
+| `src/host/content.ts`、`history.ts`、`operations.ts` | 内容校验与附件保留、历史截断与重发、列表与请求去重 |
+| `src/client/index.tsx` | Client 入口：注册样式、命令错误视图和消息组件 |
+| `src/client/components/`、`hooks/` | 消息展示、操作按钮、编辑表单与草稿/提交流程 |
+| `src/client/history/` | 隔离 DSH 0.2.2 的 Chat builder、轮次提纲与卸载恢复适配 |
+| `src/shared/protocol.ts` | Host / Client 共用的请求、结果和历史截断类型 |
+| `scripts/build.ts` | esbuild 编译、自包含 ModuleLoader 包装和类型声明生成 |
+| `lib/` | 已提交的运行产物和类型声明，支持下载后直接安装 |
+
+```sh
+pnpm install --frozen-lockfile --ignore-scripts
+pnpm typecheck
+pnpm build
+```
+
+`pnpm build` 生成 `lib/index.js`、`lib/client.js`、回归用的 `lib/core.js` / `lib/visibility.js` 以及 `lib/types/`。包的 `exports` 指向 `lib/`；浏览器通过宿主 ModuleLoader 获取 React，不打入另一份 React。运行插件不需要安装 TypeScript 或其他 npm 依赖。类型检查和构建不需要 DSH 参考源码。
+
+详细模块边界和流程图见 [架构说明](docs/ARCHITECTURE.md)。
+
 ## 验证
 
-源码测试需要 Node.js 24、pnpm 10 和相邻的 DSH 参考源码。运行包不包含开发测试，请从源码仓库检出：
+完整源码测试需要 Node.js 24、pnpm 10 或更新版本，以及相邻的 DSH 参考源码。运行包不包含开发测试，请从源码仓库检出：
 
 ```sh
 git clone https://github.com/deepseek-ai/deepseek-harness.git deepseek-harness-latest
@@ -64,12 +89,12 @@ git -C deepseek-harness-latest checkout ce7073d51254c26cd63b22a60835b8f948deb447
 git clone https://github.com/Stxr/dsh-message-pencil.git
 cd dsh-message-pencil
 pnpm install --frozen-lockfile --ignore-scripts
-pnpm test
+pnpm check
 ```
 
-测试直接加载相邻参考源码的 Session surface、ChatSnapshotBuilder 和 React-free SlotCore。该固定提交为 0.2.2-alpha.2；目标运行时仍是 0.2.2-rc.1，参考测试不能替代发行版现场验收。24 项检查覆盖历史截断、附件、首条消息、插话、过期原文、忙碌/取消拒绝、去重、侧栏会话生命周期及卸载恢复。详细结果与现场验证限制见 [VERIFICATION.md](VERIFICATION.md)。
+`pnpm check` 先做严格类型检查，再重新构建并运行全部测试；`pnpm test` 也会先构建，确保检查的是本次产物。现有 JavaScript 行为测试继续作为黑盒回归，避免迁移源码时同步改变原断言。
 
-`pnpm build` 从 `visibility.js` 更新自包含 `client.js`，发行仓库已提交构建产物。运行时不需要额外 npm 依赖。
+测试直接加载相邻参考源码的 Session surface、ChatSnapshotBuilder 和 React-free SlotCore。该固定提交为 0.2.2-alpha.2；目标运行时仍是 0.2.2-rc.1，参考测试不能替代发行版现场验收。29 项检查覆盖历史截断、附件、首条消息、插话、过期原文、忙碌/取消拒绝、去重、侧栏生命周期、卸载恢复，以及编译后 TSX 界面的 IME、快捷键、草稿取消和失败重试。详细结果与现场验证限制见 [VERIFICATION.md](VERIFICATION.md)。
 
 ## 发布与发现
 

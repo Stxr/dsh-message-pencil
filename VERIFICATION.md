@@ -1,5 +1,23 @@
 # 验证记录
 
+## TypeScript 模块化迁移（2026-11-10）
+
+本节记录 1.1.3 的 TypeScript 模块化重构。Host / Client 的维护入口改为 TypeScript / TSX；DSH 按 `package.json` 的 `exports` 加载 `lib/` 中的编译产物，运行时版本要求仍为 `0.2.2-rc.1`。
+
+- 改造前基线：原有 24 项测试全部通过。
+- 严格 TypeScript 检查：覆盖 `src/` 与 `scripts/`，无类型错误，不使用 `@ts-nocheck` 或显式 `any` 绕过检查。
+- 重新编译：生成 Host ESM、Client ModuleLoader 脚本、核心/历史回归入口以及类型声明。Client 只从宿主获取 React，不包含运行时 npm 依赖。
+- 改造后回归：保留原有 24 项断言，新增 5 项编译后 Client 交互测试，共 29 项通过、0 失败。
+- 新增交互覆盖：运行中/排队/等待首轮隐藏铅笔、未知内容块拒绝编辑、宿主附件保留、IME 选词和普通回车不提交、Cmd+Enter 提交、Esc/取消丢弃草稿、重复提交抑制、失败后复用请求 ID，以及截断后重发失败的提示。
+- 完整回归直接加载新编译的 `lib/`，原生 surface、ChatSnapshotBuilder 和 SlotCore 仍使用固定参考提交 `ce7073d51254c26cd63b22a60835b8f948deb447`。
+- 重复构建校验：全部 30 个 JS / 类型声明产物的 SHA-256 完全一致。
+- 独立打包检查：使用 `pnpm pack` 生成运行包，在没有 `node_modules` 的临时目录解压后成功导入 Host；Client 的 ModuleLoader factory 仅请求宿主 `react`，类型声明、patch、图标和语言资源均存在。
+- 本地工具版本：Node.js 24.21.0、pnpm 11.28.5；CI 保持 Node.js 24 / pnpm 10.18.3，并执行同一 `pnpm check` 流程。
+
+本次未在正在使用的 DSH profile 中重新安装或切换插件，也未进行真实模型对话的桌面现场验收。下方 2026-11-07 的现场记录属于此前 JavaScript 发行版，不能作为本次 TypeScript 产物的现场验证结果。React 交互测试使用真实 React 渲染器，不模拟浏览器布局和鼠标悬浮；测试工具会提示 react-test-renderer 已弃用，不影响测试结果。
+
+## 此前发行版验证（2026-11-07）
+
 日期：2026-11-07（Asia/Shanghai）。版本：@local/dsh-message-pencil 1.1.2。实际宿主：DeepSeek Harness Desktop 0.2.2-rc.1，desktop profile。
 
 ## 已修复的现场问题
@@ -13,7 +31,7 @@
 ## 自动化检查
 
 - JavaScript 语法检查通过。
-- `node tests/run.js`：24 项通过、0 失败；先重建自包含 Client 产物。
+- 当时的 JavaScript 测试入口为 `node tests/run.js`（现已由 `scripts/test.ts` 替代）：24 项通过、0 失败；先重建自包含 Client 产物。
 - 14 项 Host 操作测试覆盖同会话截断、保留前缀、附件、首条消息、插话和自动回合前缀、忙碌/取消/过期拒绝、截断前后失败、请求去重、工具与 UI 共用命令。
 - 2 项实际 SlotCore 注册测试覆盖挂载、原生子插槽声明冲突和卸载恢复。
 - 5 项实际 Session surface / ChatSnapshotBuilder 测试覆盖历史重放、空 developer 标记、旧消息和分组/导航/兼容行移除、提纲过滤、错误可见性及 factory 恢复。

@@ -1,0 +1,134 @@
+.mp-row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  min-width: 0;
+}
+
+.mp-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--dsw-alias-label-secondary);
+  min-height: 26px;
+}
+
+.mp-icon {
+  width: 28px;
+  height: 28px;
+  padding: 5px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: inherit;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.mp-icon:hover,
+.mp-icon:focus-visible {
+  background: var(--dsw-alias-bg-layer-2);
+  color: var(--dsw-alias-label-primary);
+}
+
+.mp-icon:disabled {
+  cursor: default;
+  opacity: .4;
+}
+
+.mp-icon:focus-visible,
+.mp-button:focus-visible {
+  outline: 2px solid var(--dsw-alias-brand-primary);
+  outline-offset: 2px;
+}
+
+.mp-editor {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  background: var(--dsw-alias-bg-layer-2);
+  border: 0;
+  border-radius: 22px;
+  padding: 16px;
+}
+
+.mp-editor textarea {
+  display: block;
+  width: 100%;
+  min-height: 2lh;
+  max-height: 50vh;
+  resize: none;
+  box-sizing: border-box;
+  field-sizing: content;
+  font: inherit;
+  line-height: 1.5;
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  border: 0;
+  outline: 0;
+  padding: 0;
+}
+
+.mp-attachments {
+  margin-bottom: 12px;
+}
+
+.mp-controls {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+
+.mp-button {
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.5;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 12px;
+  padding: 6px 12px;
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  cursor: pointer;
+}
+
+.mp-button:hover {
+  background: var(--dsw-alias-bg-layer-1);
+}
+
+.mp-button:disabled {
+  opacity: .5;
+  cursor: default;
+}
+
+.mp-primary,
+.mp-primary:hover {
+  border-color: transparent;
+  background: var(--dsw-alias-label-primary);
+  color: var(--dsw-alias-bg-base);
+}
+
+.mp-error {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--dsw-alias-state-error-primary);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  margin-top: 8px;
+}
+
+@media (hover: hover) {
+  .mp-actions button {
+    opacity: 0;
+  }
+
+  .mp-row:hover .mp-actions button,
+  .mp-row:focus-within .mp-actions button {
+    opacity: 1;
+  }
+}

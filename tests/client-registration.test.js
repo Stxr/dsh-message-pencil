@@ -35,7 +35,7 @@ test('the real registry rejects the old duplicate native-child declaration', () 
 test('the fixed browser plugin mounts both message renderers and restores native entries on unload', async () => {
   const core = nativeTree();
   let definition;
-  const source = await readFile(new URL('../client.js', import.meta.url), 'utf8');
+  const source = await readFile(new URL('../lib/client.js', import.meta.url), 'utf8');
   vm.runInNewContext(source, { window: { __ModuleLoader__: { load: value => { definition = value; } } } });
   const plugin = definition.factory(name => {
     assert.equal(name, 'react');

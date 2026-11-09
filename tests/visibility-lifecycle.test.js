@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { installEditVisibility } from '../visibility.js';
+import { installEditVisibility } from '../lib/visibility.js';
 
 function fixture({ failRebuild = false } = {}) {
   const effects = [], rebuilt = [], retained = new Set(['open']);

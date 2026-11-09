@@ -27,5 +27,5 @@ jobs:
         with:
           version: '10.18.3'
       - run: pnpm install --frozen-lockfile --ignore-scripts
-      - run: pnpm test
-      - run: git diff --exit-code -- client.js
+      - run: pnpm check
+      - run: git diff --exit-code -- lib/

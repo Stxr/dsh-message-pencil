@@ -30,6 +30,18 @@
       },
       "versions": [
         {
+          "version": "1.1.3",
+          "publishTimestamp": 1794244709,
+          "source": {
+            "type": "git",
+            "url": "https://github.com/Stxr/dsh-message-pencil",
+            "commit": "93c722a209d6477231aada0764cc1b38f507065f"
+          },
+          "engines": {
+            "dsh": "0.2.2-rc.1"
+          }
+        },
+        {
           "version": "1.1.2",
           "publishTimestamp": 1794013801,
           "source": {

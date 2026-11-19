@@ -60,8 +60,15 @@ export interface HostAgent {
     id: string;
     inbox: {
         clear(): void;
+        remove(messageId: string): boolean;
     };
     runMaintenance?<T>(task: (signal: AbortSignal) => Promise<T>): Promise<T>;
+    whenIdle(): Promise<void>;
+    cancel(cause: {
+        kind: 'user';
+    }, options: {
+        keepInbox: true;
+    }): void;
     followup(message: UserMessage): unknown;
 }
 export interface SessionStore {
@@ -72,7 +79,6 @@ export interface AgentStore {
     get(sessionId: string): HostAgent | undefined;
     turnBoundaryOf(session: HostSession): {
         lastTurn: number;
-        lastStepStartSeq: number;
     };
 }
 export interface SessionController {
@@ -82,7 +88,24 @@ export interface SessionController {
         running: boolean;
     }>;
 }
-export interface EditDependencies {
+export interface RequestPosition {
+    agent: HostAgent;
+    turn: number;
+    step: number;
+    signal: AbortSignal;
+}
+export interface ClaimedInput {
+    agent: HostAgent;
+    turn: number;
+    message: {
+        id: string;
+    };
+}
+export interface EditEvents {
+    on(event: 'agent/inbox/claimed', listener: (input: ClaimedInput) => void): () => void;
+    on(event: 'agent/request', listener: (position: RequestPosition, next: () => Promise<unknown>) => Promise<unknown>): () => void;
+}
+export interface EditDependencies extends EditEvents {
     sessions: SessionStore;
     agents: AgentStore;
     controller: SessionController;
@@ -130,7 +153,7 @@ export interface ToolDefinition {
         title: string;
     };
 }
-export interface HostContext {
+export interface HostContext extends EditEvents {
     sessions: SessionStore;
     agents: AgentStore;
     sessionController: SessionController;

@@ -35,9 +35,9 @@ function listMessages(sessions: SessionStore, sessionId: string, beforeSeq: unkn
 
 export function createOperations(deps: EditDependencies): { operate: Operate; dispose(): void } {
   const requests = new Map<string, { fingerprint: string; promise: Promise<EditResult> }>();
-  let disposed = false;
+  const lifetime = new AbortController();
   const operate: Operate = async (sessionValue, value, signal) => {
-    if (disposed) throw new Error('插件已卸载。 / Plugin unloaded.');
+    lifetime.signal.throwIfAborted();
     const sessionId = requireSessionId(sessionValue);
     const request = requireRequest(value);
     if (request.action === 'list') return listMessages(deps.sessions, sessionId, request.beforeSeq);
@@ -53,7 +53,8 @@ export function createOperations(deps: EditDependencies): { operate: Operate; di
       return previous.promise;
     }
     // 缓存运行中的 Promise，命令与工具并发重试也只能截断和发送一次。
-    const promise = editAndSend(deps, sessionId, request, signal);
+    const editSignal = signal ? AbortSignal.any([signal, lifetime.signal]) : lifetime.signal;
+    const promise = editAndSend(deps, sessionId, request, editSignal);
     requests.set(key, { fingerprint, promise });
     try {
       return await promise;
@@ -65,7 +66,7 @@ export function createOperations(deps: EditDependencies): { operate: Operate; di
   return {
     operate,
     dispose() {
-      disposed = true;
+      lifetime.abort(new Error('插件已卸载。 / Plugin unloaded.'));
       requests.clear();
     },
   };

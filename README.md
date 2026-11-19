@@ -1,6 +1,6 @@
 # 消息编辑 / Message editing
 
-为 DeepSeek Harness 0.2.2-rc.1 提供 Codex 风格的已发送用户消息编辑。当前版本 1.1.3。
+为 DeepSeek Harness 提供 Codex 风格的已发送用户消息编辑。当前源码适配 DSH 0.2.2-rc.5。
 
 Edit a sent user message and regenerate in the same conversation. Earlier messages stay; the edited message and everything after it are replaced. The pencil appears with Copy on hover, only after generation finishes.
 
@@ -28,7 +28,7 @@ https://raw.githubusercontent.com/Stxr/dsh-message-pencil/main/index.json
 
 ### 直接安装
 
-也可以在插件管理器的「添加插件」中输入：
+在 DSH `0.2.2-rc.5` 中，用「添加插件」选择包含 `1.1.4` 的源码目录。Git 标签 `v1.1.3` 适用于 DSH `0.2.2-rc.1`。
 
 ```text
 git+https://github.com/Stxr/dsh-message-pencil.git#v1.1.3
@@ -40,13 +40,13 @@ git+https://github.com/Stxr/dsh-message-pencil.git#v1.1.3
 
 ## 历史和兼容性
 
-Host 使用原生 `surfaceOp: replace` 替换历史尾部，通过空 developer 消息删除对应模型输入，再用完整用户消息重新生成。修改在 Agent 的空闲维护操作中执行，避免与另一项生成操作交错；提交新消息前先持久化截断结果。请求去重可避免重复点击产生两次修改。
+Host 在 Agent 空闲维护操作中检查原文并排入新消息。重发首步打开后，Host 使用空 developer 消息和原生 `surfaceOp: replace` 截断旧后缀，等待截断落盘后才继续构建模型请求。请求去重可避免重复点击产生两次修改。
 
 聊天列表、工具过程、已加载轮次导航及统计兼容数据沿用原生 Chat builder 的隐藏语义；全历史轮次导航也会过滤被截断轮次。消息正文和附件继续由宿主 user-content Factory 渲染。界面不操作其他插件的 DOM。
 
 DSH 的底层审计日志只追加，不物理擦除旧记录；「轨迹」或原始日志仍可能查看这些记录。停用插件会恢复原生历史展示，但不会把旧内容放回模型上下文。这里没有创建或保留独立的旧会话。
 
-当前宿主没有公开的聊天历史过滤接口。Client 因此包含两处有版本检查且卸载时恢复的适配：包装已注册的 Chat builder factory，以及装饰原生 Chat 组件的轮次提纲读取。它们属于私有兼容接口，仅针对声明的 0.2.2-rc.1；升级 DSH 后必须复验。注册资源和包装均随插件卸载恢复。
+当前宿主没有公开的聊天历史过滤接口。Client 因此包含两处有版本检查且卸载时恢复的适配：包装已注册的 Chat builder factory，以及装饰原生 Chat 组件的轮次提纲读取。它们属于私有兼容接口，已在 0.2.2-rc.5 的原生组件测试中复验。升级 DSH 后必须重新验证。注册资源和包装均随插件卸载恢复。
 
 ## 自动化
 
@@ -84,8 +84,8 @@ pnpm build
 完整源码测试需要 Node.js 24、pnpm 10 或更新版本，以及相邻的 DSH 参考源码。运行包不包含开发测试，请从源码仓库检出：
 
 ```sh
-git clone https://github.com/deepseek-ai/deepseek-harness.git deepseek-harness-latest
-git -C deepseek-harness-latest checkout ce7073d51254c26cd63b22a60835b8f948deb447
+git clone https://github.com/deepseek-ai/deepseek-harness.git deepseek-harness-rc5
+git -C deepseek-harness-rc5 checkout 9c2670d3bce5275e0d1610272958121af87787bb
 git clone https://github.com/Stxr/dsh-message-pencil.git
 cd dsh-message-pencil
 pnpm install --frozen-lockfile --ignore-scripts
@@ -94,7 +94,7 @@ pnpm check
 
 `pnpm check` 先做严格类型检查，再重新构建并运行全部测试；`pnpm test` 也会先构建，确保检查的是本次产物。现有 JavaScript 行为测试继续作为黑盒回归，避免迁移源码时同步改变原断言。
 
-测试直接加载相邻参考源码的 Session surface、ChatSnapshotBuilder 和 React-free SlotCore。该固定提交为 0.2.2-alpha.2；目标运行时仍是 0.2.2-rc.1，参考测试不能替代发行版现场验收。29 项检查覆盖历史截断、附件、首条消息、插话、过期原文、忙碌/取消拒绝、去重、侧栏生命周期、卸载恢复，以及编译后 TSX 界面的 IME、快捷键、草稿取消和失败重试。详细结果与现场验证限制见 [VERIFICATION.md](VERIFICATION.md)。
+测试直接加载 DSH 0.2.2-rc.5 发行源码的 Session surface、ChatSnapshotBuilder 和 SlotCore，覆盖历史截断、附件、插话、去重、卸载恢复，以及编译后界面的 IME、快捷键和失败重试。另有实际 Desktop Host 的隔离恢复测试。复现命令和验证范围见 [VERIFICATION.md](VERIFICATION.md)。
 
 ## 发布与发现
 

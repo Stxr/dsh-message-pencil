@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { foldSurface, deriveEventMessage } from '../../deepseek-harness-latest/packages/core/session/src/surface.ts';
-import { ChatSnapshotBuilder } from '../../deepseek-harness-latest/packages/client/ui-chat/src/client/conversation-nodes/chat-snapshot-builder.ts';
+import { foldSurface, deriveEventMessage } from '../../deepseek-harness-rc5/packages/core/session/src/surface.ts';
+import { ChatSnapshotBuilder } from '../../deepseek-harness-rc5/packages/client/ui-chat/src/client/conversation-nodes/chat-snapshot-builder.ts';
 import { EditVisibilityBuilder, filterOutline, decorateChatDefinition } from '../lib/visibility.js';
 
 const cut = { from: 9, to: 21, fromTurn: 2, lastTurn: 3, keepFirstTurn: false };

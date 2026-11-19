@@ -2,8 +2,9 @@ import { randomUUID } from 'node:crypto';
 import { errorMessage } from '../shared/protocol.js';
 import type { EditCut, EditResult, MessageContent } from '../shared/protocol.js';
 import { messageText, replaceText } from './content.js';
-import type { EditDependencies, HostSession, HumanMessageEvent, SessionEvent } from './types.js';
-import { editSequence, editText, eventStep, isHumanMessageEvent, isRecord, isTurnStartEvent } from './validation.js';
+import { deferCut } from './request-cut.js';
+import type { EditDependencies, HostSession, HumanMessageEvent } from './types.js';
+import { editSequence, editText, isHumanMessageEvent, isRecord, isTurnStartEvent } from './validation.js';
 
 const incompleteHistory = '会话轮次不完整，无法修改。 / The conversation has no complete step position.';
 
@@ -37,21 +38,20 @@ export async function editAndSend(
   if (!agent || typeof agent.runMaintenance !== 'function') {
     throw new Error('当前会话暂不可编辑，请重新打开。 / Reopen the conversation to edit.');
   }
-  return agent.runMaintenance(async maintenanceSignal => {
+  const { pending, cut, seq, content } = await agent.runMaintenance(async maintenanceSignal => {
     signal?.throwIfAborted();
     maintenanceSignal.throwIfAborted();
     const seq = editSequence(request);
     const { content } = editTarget(source, request);
-    const nodes = source.surface.nodes;
+    const nodes = [...source.surface.nodes];
     const targetIndex = nodes.indexOf(seq);
     const removed = nodes.slice(targetIndex);
     const boundary = deps.agents.turnBoundaryOf(source);
-    const step = eventStep(source.eventAt(boundary.lastStepStartSeq));
     const opening = source.snapshotEvents().findLast(item => isTurnStartEvent(item) && item.seq < seq);
     const startSeq = removed[0];
     const endSeq = removed.at(-1);
-    if (!opening || !isTurnStartEvent(opening) || typeof step !== 'number' || !Number.isSafeInteger(step)
-      || step < 1 || boundary.lastTurn < 1 || targetIndex < 0 || startSeq === undefined || endSeq === undefined) {
+    if (!opening || !isTurnStartEvent(opening) || boundary.lastTurn < 1 || targetIndex < 0
+      || startSeq === undefined || endSeq === undefined) {
       throw new Error(incompleteHistory);
     }
     const prefix = nodes.slice(0, targetIndex).filter(nodeSeq => nodeSeq > opening.seq).map(nodeSeq => {
@@ -70,13 +70,17 @@ export async function editAndSend(
         keptPrompt: firstHuman ? messageText(firstHuman.data.content).replace(/\s+/g, ' ').trim().slice(0, 50) : '',
       } : {}),
     };
-    let marker: SessionEvent | undefined;
-    let accepted = false;
-    try {
-      // 空 developer 消息只替换 surface，不派生模型输入，也不制造占位提示词。
+    agent.inbox.clear();
+    const message = { id: randomUUID(), role: 'user', content, source: { kind: 'user' } } as const;
+    const pending = deferCut(deps, agent, message, ({ turn, step }) => {
+      const current = source.surface.nodes;
+      if (current.length !== nodes.length || current.some((value, index) => value !== nodes[index])) {
+        throw new Error('会话历史已变化，请重新打开编辑器。 / History changed; reopen the editor.');
+      }
+      // v4 requires an open step. This marker contributes no model input.
       const requestId = isRecord(request) ? request.requestId : undefined;
-      marker = source.append('developer/message', {
-        turn: boundary.lastTurn,
+      return source.append('developer/message', {
+        turn,
         step,
         message: {
           id: `message-pencil-cut:${String(requestId)}`,
@@ -84,34 +88,43 @@ export async function editAndSend(
           content: [],
           source: { kind: 'user' },
         },
-      }, { surfaceOp: { op: 'replace', startSeq, endSeq }, sourceEventSeqs: [...removed] });
-      agent.inbox.clear();
-      // 截断先落盘，再接收新输入；第二次 flush 失败时仍必须报告输入已接受。
-      if (!await deps.sessions.flush(source)) throw new Error('未找到会话持久化服务。 / Session persistence is unavailable.');
-      maintenanceSignal.throwIfAborted();
-      signal?.throwIfAborted();
-      agent.followup({ id: randomUUID(), role: 'user', content, source: { kind: 'user' } });
-      accepted = true;
-      if (!await deps.sessions.flush(source)) throw new Error('未找到会话持久化服务。 / Session persistence is unavailable.');
-      return {
-        sessionId,
-        editedSeq: seq,
-        markerSeq: marker.seq,
-        cut: { ...cut, to: marker.seq },
-        attachmentCount: content.filter(block => block.type !== 'text').length,
-      };
+      }, { surfaceOp: { op: 'replace', startSeq, endSeq }, sourceEventSeqs: removed });
+    }, async () => {
+      if (!await deps.sessions.flush(source)) {
+        throw new Error('未找到会话持久化服务。 / Session persistence is unavailable.');
+      }
+    }, signal);
+    try {
+      agent.followup(message);
+      return { pending, cut, seq, content };
     } catch (error) {
-      // marker 追加后历史已改变，错误也作为成功命令的结果返回，供界面保留截断记录。
-      if (!marker) throw error;
-      return {
-        sessionId,
-        editedSeq: seq,
-        markerSeq: marker.seq,
-        cut: { ...cut, to: marker.seq },
-        historyChanged: true,
-        accepted,
-        error: errorMessage(error),
-      };
+      pending.dispose();
+      throw error;
     }
   });
+  try {
+    const marker = await pending.wait();
+    return {
+      sessionId,
+      editedSeq: seq,
+      markerSeq: marker.seq,
+      cut: { ...cut, to: marker.seq },
+      attachmentCount: content.filter(block => block.type !== 'text').length,
+    };
+  } catch (error) {
+    const { marker } = pending;
+    if (!marker) throw error;
+    // A failed flush stops this model request, but the live surface has already changed.
+    return {
+      sessionId,
+      editedSeq: seq,
+      markerSeq: marker.seq,
+      cut: { ...cut, to: marker.seq },
+      historyChanged: true,
+      accepted: false,
+      error: errorMessage(error),
+    };
+  } finally {
+    pending.dispose();
+  }
 }

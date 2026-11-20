@@ -1,5 +1,16 @@
 # 验证记录
 
+## DSH 0.2.2-rc.5 源码适配
+
+- 以正式发行提交 `9c2670d3bce5275e0d1610272958121af87787bb` 的 Session surface、ChatSnapshotBuilder 与 SlotCore 运行 `pnpm check`。另外用 Desktop 安装内的 Electron 44.7.0 执行下方隔离测试。
+- 原版在真实 v4 恢复校验中报 `developer/message does not match an open turn and step`。适配版在重发首步写入截断，连续编辑两次后保留原会话 ID、前缀和文件引用，旧后缀退出模型输入。实际 JSONL 持久化文件通过严格校验，新的 Cordis Host 能重新打开会话并发送下一条消息。
+- 隔离测试使用安装版 Cordis、AgentLoop、Commands 与 JSONL 持久化，模型回复由本地测试中间件提供，`sessionController.state()` 使用最小替身。Client 通过发行源码和 React 回归验证。当前桌面 profile 和真实浏览器交互未参与测试。
+
+```sh
+pnpm build
+ELECTRON_RUN_AS_NODE=1 "$DSH_NODE_EXECUTABLE" tests/installed-host-recovery.cjs
+```
+
 ## TypeScript 模块化迁移（2026-11-10）
 
 本节记录 1.1.3 的 TypeScript 模块化重构。Host / Client 的维护入口改为 TypeScript / TSX；DSH 按 `package.json` 的 `exports` 加载 `lib/` 中的编译产物，运行时版本要求仍为 `0.2.2-rc.1`。

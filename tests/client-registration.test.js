@@ -5,7 +5,7 @@ import vm from 'node:vm';
 
 // Run the real, React-free registry from the inspected local DSH checkout.
 // No component is rendered and no DOM or visual preview is emulated.
-const sourceUrl = new URL('../../deepseek-harness-latest/packages/client/ui-slots/src/index.ts', import.meta.url);
+const sourceUrl = new URL('../../deepseek-harness-rc5/packages/client/ui-slots/src/index.ts', import.meta.url);
 const { SlotCore } = await import(sourceUrl.href);
 
 function nativeTree() {

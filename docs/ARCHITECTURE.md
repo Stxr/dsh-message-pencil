@@ -71,15 +71,15 @@ flowchart TD
     Command --> Operation[operations：请求去重]
     Operation --> Edit[history：进入 Agent 维护锁]
     Edit --> Validate[核对目标仍可见、原文一致、保留附件]
-    Validate --> Cut[追加空 developer marker，以 surface replace 截断后缀]
-    Cut --> Flush[先持久化截断结果]
-    Flush --> Send[followup：发送新正文与原附件，再持久化]
-    Send --> Result[返回原会话 ID、markerSeq 和 cut]
+    Validate --> Queue[followup：排入新正文与原附件]
+    Queue --> Cut[重发首步打开后追加空 developer marker]
+    Cut --> Flush[持久化 surface replace 截断]
+    Flush --> Result[返回原会话 ID、markerSeq 和 cut]
     Result --> Display[history 适配：过滤旧消息、兼容行及轮次提纲]
-    Send --> Generate[原会话重新生成回复]
+    Flush --> Generate[原会话重新生成回复]
 ```
 
-关键顺序是 `runMaintenance → 截断 → flush → followup → flush`。进入维护锁之后再次校验目标，避免原文已变更时误改；同一请求 ID 缓存同一个 Promise，重复点击和工具重试只能提交一次。
+关键顺序是 `runMaintenance → followup 排队 → 开放首步 → 截断 → flush → 构建模型请求`。插件在维护锁内再次校验目标，再用输入 ID 关联 `agent/inbox/claimed` 与对应的 `agent/request`。DSH v4 要求空 developer marker 属于仍开放的 step。同一请求 ID 缓存同一个 Promise，重复点击和工具重试只能提交一次。
 
 截断 marker 写入后的失败不能假装历史未改变：结果会携带 `historyChanged`、`accepted` 和错误信息，界面保留提示。旧审计日志不会物理删除，已执行的文件修改、命令和外部操作也不会回滚。
 
@@ -90,4 +90,4 @@ flowchart TD
 - `pnpm test`：先构建，再对编译产物执行行为测试、真实 DSH 参考组件测试和 React 交互测试。
 - `pnpm check`：类型检查与完整测试，CI 使用同一命令；CI 另检查构建后 `lib/` 无差异。
 
-兼容目标仍为 DSH `0.2.2-rc.1`。更换宿主版本时，优先复验 `client/history/` 的私有接口，并对实际发行版执行现场验收。
+兼容目标为 DSH `0.2.2-rc.5`。更换宿主版本时，复验 `client/history/` 的私有接口及实际 Host 的持久化和恢复。

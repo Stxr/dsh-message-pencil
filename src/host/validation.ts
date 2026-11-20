@@ -46,10 +46,6 @@ export function isTurnStartEvent(event: SessionEvent): event is TurnStartEvent {
     && typeof event.data.turn === 'number' && Number.isSafeInteger(event.data.turn) && event.data.turn >= 1;
 }
 
-export function eventStep(event: SessionEvent | undefined): unknown {
-  return event && isRecord(event.data) ? event.data.step : undefined;
-}
-
 /** JSON.parse 的结果始终以 unknown 进入后续校验。 */
 export function parseJson(text: string): unknown {
   return JSON.parse(text) as unknown;

@@ -27,13 +27,22 @@ function environment(options = {}) {
   const nodes = [0, 3, 4, 9, 10, 15, 16];
   const calls = [];
   const pending = [];
-  let maintenance = false, flushes = 0;
+  const listeners = new Map();
+  const on = (event, listener) => {
+    const callbacks = listeners.get(event) ?? new Set();
+    listeners.set(event, callbacks);
+    callbacks.add(listener);
+    return () => callbacks.delete(listener);
+  };
+  let maintenance = false, openStep = false, running = Promise.resolve();
   const source = {
     id: 'source', surface: { nodes }, eventAt: seq => events[seq], snapshotEvents: () => [...events],
     append(type, data, intent) {
       if (options.appendFailure) throw new Error('append refused');
       assert.equal(type, 'developer/message'); assert.equal(data.message.role, 'developer');
-      assert.deepEqual(data.message.content, []); assert.equal(data.turn, 3); assert.equal(data.step, 1);
+      assert.deepEqual(data.message.content, []);
+      assert.ok(openStep, 'v4 recovery requires an open step');
+      assert.equal(data.turn, 4); assert.equal(data.step, 1);
       assert.deepEqual(intent.sourceEventSeqs, nodes.slice(nodes.indexOf(intent.surfaceOp.startSeq)));
       const at = nodes.indexOf(intent.surfaceOp.startSeq);
       assert.ok(at >= 0); assert.equal(intent.surfaceOp.endSeq, nodes.at(-1));
@@ -45,33 +54,59 @@ function environment(options = {}) {
   };
   const agent = {
     id: 'source', session: source,
-    inbox: { clear: () => { calls.push('clear'); pending.length = 0; } },
+    inbox: {
+      clear() { pending.length = 0; },
+      remove(id) {
+        const index = pending.findIndex(message => message.id === id);
+        if (index < 0) return false;
+        pending.splice(index, 1);
+        return true;
+      },
+    },
     async runMaintenance(task) {
       if (maintenance || options.maintenanceBusy) throw new Error('maintenance busy');
       maintenance = true;
       try { return await task(new AbortController().signal); }
       finally {
         maintenance = false;
-        for (const message of pending.splice(0)) {
-          const event = { type: 'user/message', data: message, seq: events.length };
-          events.push(event); nodes.push(event.seq);
-        }
+        running = (async () => {
+          for (const message of pending.splice(0)) {
+            for (const callback of listeners.get('agent/inbox/claimed') ?? []) {
+              callback({ agent, message, turn: 4 });
+            }
+            openStep = true;
+            try {
+              const position = { agent, turn: 4, step: 1, signal: new AbortController().signal };
+              const request = [...(listeners.get('agent/request') ?? [])]
+                .reduceRight((next, callback) => () => callback(position, next), async () => ({}));
+              await request();
+              const event = { type: 'user/message', data: message, seq: events.length };
+              events.push(event); nodes.push(event.seq);
+            } catch {
+              // The real driver contains a rejected request and admits no user input.
+            } finally { openStep = false; }
+          }
+        })();
       }
     },
+    whenIdle: () => running,
+    cancel() {},
     followup(message) {
       assert.ok(maintenance); assert.equal(message.role, 'user'); assert.match(message.id, /^[0-9a-f-]{36}$/);
-      calls.push(['followup', message]); if (options.sendFailure) throw new Error('send refused'); pending.push(message);
+      if (options.sendFailure) throw new Error('send refused');
+      calls.push(['followup', message]); pending.push(message);
     },
   };
   const deps = {
+    on,
     sessions: { get: id => id === 'source' ? source : undefined, flush: async session => {
-      assert.equal(session, source); calls.push('flush'); flushes++;
-      if (options.flushFailureAt === flushes) throw new Error('disk full'); return true;
+      assert.equal(session, source); calls.push('flush');
+      if (options.flushFailure) throw new Error('disk full'); return true;
     } },
     agents: { get: id => id === 'source' ? agent : undefined, turnBoundaryOf: () => ({ lastTurn: 3, lastStepStartSeq: 14 }) },
     controller: { state: async () => ({ running: !!options.running }), fork: () => { throw new Error('Editing must never fork'); } },
   };
-  return { deps, source, agent, calls, events };
+  return { deps, source, agent, calls, events, listeners };
 }
 
 test('text replacement retains the exact attachment values and original block order', () => {
@@ -136,10 +171,12 @@ test('editing steering after automatic input preserves preceding assistant conte
 });
 
 test('busy, canceled, missing, stale and append-rejected operations do not change history', async () => {
-  for (const options of [{ running: true }, { maintenanceBusy: true }, { appendFailure: true }]) {
+  for (const options of [{ running: true }, { maintenanceBusy: true }, { appendFailure: true }, { sendFailure: true }]) {
     const fixture = environment(options), before = structuredClone(fixture.events);
     await assert.rejects(editAndSend(fixture.deps, 'source', request));
-    assert.deepEqual(fixture.events, before); assert.deepEqual(fixture.calls, []);
+    assert.deepEqual(fixture.events, before);
+    assert.equal(fixture.calls.some(call => call[0] === 'replace'), false);
+    assert.equal(fixture.calls.length, options.appendFailure ? 1 : 0);
   }
   const fixture = environment();
   await assert.rejects(editAndSend(fixture.deps, 'missing', request), /Open the conversation/);
@@ -147,21 +184,30 @@ test('busy, canceled, missing, stale and append-rejected operations do not chang
   assert.deepEqual(fixture.calls, []);
 });
 
-for (const options of [{ sendFailure: true }, { flushFailureAt: 1 }, { flushFailureAt: 2 }]) {
-  test(`a post-cut failure reports the committed cut and whether the new prompt was accepted: ${JSON.stringify(options)}`, async () => {
-    const fixture = environment(options);
-    const result = await editAndSend(fixture.deps, 'source', request);
-    assert.equal(result.sessionId, 'source'); assert.equal(result.historyChanged, true);
-    assert.equal(typeof result.error, 'string'); assert.equal(result.markerSeq, 19);
-    assert.equal(result.accepted, options.flushFailureAt === 2);
-    assert.ok(!fixture.source.deriveMessages().some(message => message.id === 'old-answer'));
-  });
-}
+test('a failed cut flush reports the live history change and prevents model admission', async () => {
+  const fixture = environment({ flushFailure: true });
+  const result = await editAndSend(fixture.deps, 'source', request);
+  await fixture.agent.whenIdle();
+  assert.equal(result.sessionId, 'source'); assert.equal(result.historyChanged, true);
+  assert.match(result.error, /disk full/); assert.equal(result.markerSeq, 19);
+  assert.equal(result.accepted, false);
+  assert.deepEqual(fixture.source.deriveMessages().map(message => messageText(message.content)), ['system', '保留的问题', '保留的回复']);
+});
+
+test('a refused replacement request leaves history unchanged and releases the hooks', async () => {
+  const fixture = environment();
+  fixture.deps.on('agent/request', async () => { throw new Error('request refused'); });
+  const before = structuredClone(fixture.events);
+  await assert.rejects(editAndSend(fixture.deps, 'source', request), /replacement request did not start/);
+  assert.deepEqual(fixture.events, before);
+  assert.equal(fixture.listeners.get('agent/inbox/claimed').size, 0);
+  assert.equal(fixture.listeners.get('agent/request').size, 1);
+});
 
 function mountedPlugin(options) {
   const fixture = environment(options), cleanup = [], services = new Map(), definitions = new Map();
   const ctx = {
-    sessions: fixture.deps.sessions, agents: fixture.deps.agents, sessionController: fixture.deps.controller,
+    sessions: fixture.deps.sessions, agents: fixture.deps.agents, sessionController: fixture.deps.controller, on: fixture.deps.on,
     effect: factory => { const dispose = factory(); cleanup.push(dispose); return dispose; },
     provide: (name, service) => { services.set(name, service); cleanup.push(() => services.delete(name)); },
     commands: {

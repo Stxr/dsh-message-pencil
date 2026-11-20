@@ -10,6 +10,7 @@ export function apply(ctx: HostContext): void {
     sessions: ctx.sessions,
     agents: ctx.agents,
     controller: ctx.sessionController,
+    on: ctx.on.bind(ctx),
   });
   ctx.effect(() => () => operations.dispose());
   ctx.provide('messagePencil', { operate: operations.operate });

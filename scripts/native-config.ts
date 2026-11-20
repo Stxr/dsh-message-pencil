@@ -9,7 +9,7 @@ interface ReferenceConfig {
 /** 原生回归需要固定版本的相邻 DSH 源码；开发构建和运行插件均不需要它。 */
 export async function writeNativeTestConfig() {
   const project = fileURLToPath(new URL('..', import.meta.url));
-  const reference = fileURLToPath(new URL('../../deepseek-harness-latest', import.meta.url));
+  const reference = fileURLToPath(new URL('../../deepseek-harness-rc5', import.meta.url));
   const source = await readFile(resolve(reference, 'tsconfig.base.json'), 'utf8');
   const config = JSON.parse(source.replace(/^\s*\/\/.*$/gm, '')) as ReferenceConfig;
   const paths = Object.fromEntries(Object.entries(config.compilerOptions.paths)
